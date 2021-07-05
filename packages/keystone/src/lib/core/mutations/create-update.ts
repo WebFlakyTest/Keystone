@@ -2,12 +2,7 @@ import { KeystoneContext, DatabaseProvider, ItemRootValue } from '@keystone-next
 import pLimit from 'p-limit';
 import { ResolvedDBField } from '../resolve-relationships';
 import { InitialisedList } from '../types-for-lists';
-import {
-  getPrismaModelForList,
-  promiseAllRejectWithAllErrors,
-  getDBFieldKeyForFieldOnMultiField,
-  IdType,
-} from '../utils';
+import { getPrismaModelForList, getDBFieldKeyForFieldOnMultiField, IdType } from '../utils';
 import {
   resolveRelateToManyForCreateInput,
   resolveRelateToManyForUpdateInput,
@@ -18,6 +13,7 @@ import {
 } from './nested-mutation-one-input-resolvers';
 import { applyAccessControlForCreate, getAccessControlledItemForUpdate } from './access-control';
 import { runSideEffectOnlyHook, validationHook } from './hooks';
+import { promiseAllRejectWithAllErrors } from '.';
 
 export class NestedMutationState {
   #afterChanges: (() => void | Promise<void>)[] = [];
@@ -39,6 +35,26 @@ export class NestedMutationState {
   }
 }
 
+export async function createOneState(
+  { data: rawData }: { data: Record<string, any> },
+  list: InitialisedList,
+  context: KeystoneContext
+) {
+  await applyAccessControlForCreate(list, context, rawData);
+  return resolveInputForCreateOrUpdate(list, context, rawData, undefined);
+}
+
+export async function createOne(
+  args: { data: Record<string, any> },
+  list: InitialisedList,
+  context: KeystoneContext
+) {
+  const { data, afterChange } = await createOneState(args, list, context);
+  const item = await getPrismaModelForList(context.prisma, list.listKey).create({ data });
+  await afterChange(item);
+  return item;
+}
+
 export function createMany(
   { data }: { data: Record<string, any>[] },
   list: InitialisedList,
@@ -47,62 +63,12 @@ export function createMany(
 ) {
   const writeLimit = pLimit(provider === 'sqlite' ? 1 : Infinity);
   return data.map(async rawData => {
-    const { afterChange, data } = await createOneState({ data: rawData }, list, context);
+    const { data, afterChange } = await createOneState({ data: rawData }, list, context);
     const item = await writeLimit(() =>
       getPrismaModelForList(context.prisma, list.listKey).create({ data })
     );
     await afterChange(item);
     return item;
-  });
-}
-
-export async function createOneState(
-  { data: rawData }: { data: Record<string, any> },
-  list: InitialisedList,
-  context: KeystoneContext
-) {
-  await applyAccessControlForCreate(list, context, rawData);
-  const { data, afterChange } = await resolveInputForCreateOrUpdate(
-    list,
-    context,
-    rawData,
-    undefined
-  );
-  return {
-    data,
-    afterChange,
-  };
-}
-
-export async function createOne(
-  args: { data: Record<string, any> },
-  list: InitialisedList,
-  context: KeystoneContext
-) {
-  const { afterChange, data } = await createOneState(args, list, context);
-  const item = await getPrismaModelForList(context.prisma, list.listKey).create({ data });
-  await afterChange(item);
-  return item;
-}
-
-export function updateMany(
-  { data }: { data: { where: Record<string, any>; data: Record<string, any> }[] },
-  list: InitialisedList,
-  context: KeystoneContext,
-  provider: DatabaseProvider
-) {
-  const writeLimit = pLimit(provider === 'sqlite' ? 1 : Infinity);
-  return data.map(async ({ data: rawData, where: rawUniqueWhere }) => {
-    const item = await getAccessControlledItemForUpdate(list, context, rawUniqueWhere, rawData);
-    const { afterChange, data } = await resolveInputForCreateOrUpdate(list, context, rawData, item);
-    const updatedItem = await writeLimit(() =>
-      getPrismaModelForList(context.prisma, list.listKey).update({
-        where: { id: item.id },
-        data,
-      })
-    );
-    afterChange(updatedItem);
-    return updatedItem;
   });
 }
 
@@ -127,6 +93,24 @@ export async function updateOne(
   return updatedItem;
 }
 
+export function updateMany(
+  { data }: { data: { where: Record<string, any>; data: Record<string, any> }[] },
+  list: InitialisedList,
+  context: KeystoneContext,
+  provider: DatabaseProvider
+) {
+  const writeLimit = pLimit(provider === 'sqlite' ? 1 : Infinity);
+  return data.map(async ({ data: rawData, where: rawUniqueWhere }) => {
+    const item = await getAccessControlledItemForUpdate(list, context, rawUniqueWhere, rawData);
+    const { afterChange, data } = await resolveInputForCreateOrUpdate(list, context, rawData, item);
+    const updatedItem = await writeLimit(() =>
+      getPrismaModelForList(context.prisma, list.listKey).update({ where: { id: item.id }, data })
+    );
+    afterChange(updatedItem);
+    return updatedItem;
+  });
+}
+
 async function resolveInputForCreateOrUpdate(
   list: InitialisedList,
   context: KeystoneContext,
@@ -139,7 +123,10 @@ async function resolveInputForCreateOrUpdate(
     await promiseAllRejectWithAllErrors(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         const inputConfig = field.input?.[operation];
+
+        // input may be undefined here if they didn't specify a value
         let input = originalInput[fieldKey];
+        // Apply default values
         if (
           operation === 'create' &&
           input === undefined &&
@@ -150,15 +137,21 @@ async function resolveInputForCreateOrUpdate(
               ? await field.__legacy.defaultValue({ originalInput, context })
               : field.__legacy.defaultValue;
         }
+
+        // Resolve field type input resolvers
         const resolved = inputConfig?.resolve
           ? await inputConfig.resolve(
               input,
               context,
               (() => {
                 if (field.dbField.kind !== 'relation') {
-                  return undefined as any;
+                  return undefined;
                 }
-                const target = `${list.listKey}.${fieldKey}<${field.dbField.list}>`;
+                // Resolve relationships
+                if (input === undefined) {
+                  return () => undefined;
+                }
+                const target = `${list.listKey}.${fieldKey}`;
                 const foreignList = list.lists[field.dbField.list];
                 if (field.dbField.mode === 'many') {
                   if (operation === 'create') {
@@ -168,36 +161,41 @@ async function resolveInputForCreateOrUpdate(
                       foreignList,
                       target
                     );
+                  } else {
+                    return resolveRelateToManyForUpdateInput(
+                      nestedMutationState,
+                      context,
+                      foreignList,
+                      target
+                    );
                   }
-                  return resolveRelateToManyForUpdateInput(
-                    nestedMutationState,
-                    context,
-                    foreignList,
-                    target
-                  );
+                } else {
+                  if (operation === 'create') {
+                    return resolveRelateToOneForCreateInput(
+                      nestedMutationState,
+                      context,
+                      foreignList,
+                      target
+                    );
+                  } else {
+                    return resolveRelateToOneForUpdateInput(
+                      nestedMutationState,
+                      context,
+                      foreignList,
+                      target
+                    );
+                  }
                 }
-                if (operation === 'create') {
-                  return resolveRelateToOneForCreateInput(
-                    nestedMutationState,
-                    context,
-                    foreignList,
-                    target
-                  );
-                }
-                return resolveRelateToOneForUpdateInput(
-                  nestedMutationState,
-                  context,
-                  foreignList,
-                  target
-                );
               })()
             )
           : input;
+        // resolve can still be undefined here if no-one set a value
         return [fieldKey, resolved] as const;
       })
     )
   );
 
+  // Resolve input hooks
   resolvedData = await resolveInputHook(
     list,
     context,
@@ -207,6 +205,7 @@ async function resolveInputForCreateOrUpdate(
     existingItem
   );
 
+  // Check isRequired
   await validationHook(list.listKey, operation, originalInput, addValidationError => {
     for (const [fieldKey, field] of Object.entries(list.fields)) {
       // yes, this is a massive hack, it's just to make image and file fields work well enough
@@ -223,15 +222,12 @@ async function resolveInputForCreateOrUpdate(
         field.__legacy?.isRequired &&
         ((operation === 'create' && val == null) || (operation === 'update' && val === null))
       ) {
-        addValidationError(
-          `Required field "${fieldKey}" is null or undefined.`,
-          { resolvedData, operation, originalInput },
-          {}
-        );
+        addValidationError(`Required field "${fieldKey}" is null or undefined.`);
       }
     }
   });
 
+  // Field validation hooks
   const args = {
     context,
     listKey: list.listKey,
@@ -252,12 +248,17 @@ async function resolveInputForCreateOrUpdate(
     );
   });
 
+  // List validation hooks
   await validationHook(list.listKey, operation, originalInput, async addValidationError => {
     await list.hooks.validateInput?.({ ...args, addValidationError });
   });
+  // Run beforeChange hooks
   const originalInputKeys = new Set(Object.keys(originalInput));
   const shouldCallFieldLevelSideEffectHook = (fieldKey: string) => originalInputKeys.has(fieldKey);
   await runSideEffectOnlyHook(list, 'beforeChange', args, shouldCallFieldLevelSideEffectHook);
+
+  // Return the full resolved input (ready for prisma level operation),
+  // and the afterChange hook to be applied
   return {
     data: flattenMultiDbFields(list.fields, resolvedData),
     afterChange: async (updatedItem: ItemRootValue) => {

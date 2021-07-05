@@ -1,8 +1,9 @@
 import { KeystoneContext, DatabaseProvider } from '@keystone-next/types';
 import pLimit from 'p-limit';
 import { InitialisedList } from '../types-for-lists';
-import { getPrismaModelForList, promiseAllRejectWithAllErrors } from '../utils';
+import { getPrismaModelForList } from '../utils';
 import { UniqueInputFilter } from '../where-inputs';
+import { promiseAllRejectWithAllErrors } from '.';
 import { getAccessControlledItemForDelete } from './access-control';
 import { runSideEffectOnlyHook, validationHook } from './hooks';
 
