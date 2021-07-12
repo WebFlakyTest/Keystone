@@ -10,7 +10,7 @@ exampleProjectTests('custom-admin-ui-components', browserType => {
     await page.goto('http://localhost:3000');
   });
   test('Load list', async () => {
-    await page.goto('https://localhost:3000');
+    await page.goto('http://localhost:3000');
     const content = await page.textContent('h3 a');
     expect(content).toBe('LegendBoulder After');
   });
