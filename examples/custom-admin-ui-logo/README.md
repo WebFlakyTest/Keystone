@@ -1,6 +1,6 @@
 ## Feature Example - Custom Components for the Admin UI
 
-This project demonstrates how to create a custom logo in the admin-ui.
+This project demonstrates how to create a custom logo in the Admin UI.
 
 ## Instructions
 
@@ -20,6 +20,6 @@ You can also access a GraphQL Playground at [localhost:3000/api/graphql](http://
 
 ## admin/pages
 
-This project shows how to export custom components to be rendered in the admin-ui via the `/admin/config` file. As elaborated on in the [Custom Components](https://keystonejs.com/docs/guides/custom-admin-ui-logo) guide, the named `components` export of this file is used to replace specific components for use in the `admin-ui`.
+This project shows how to export custom components to be rendered in the Admin UI via the `/admin/config` file. As elaborated on in the [Custom Admin UI Logo](https://keystonejs.com/docs/guides/custom-admin-ui-logo) guide, the named `components` export of this file is used to replace specific components for use in the Admin UI.
 
 If you have specific components you think should also be exposed from this config, please let us know in the [KeystoneJS Slack](https://join.slack.com/t/keystonejs/shared_invite/zt-p3vix84g-MyIdzoNuHc7S5Yx2FXxiug)
