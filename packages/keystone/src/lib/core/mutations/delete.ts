@@ -3,9 +3,9 @@ import pLimit from 'p-limit';
 import { InitialisedList } from '../types-for-lists';
 import { getPrismaModelForList } from '../utils';
 import { UniqueInputFilter } from '../where-inputs';
-import { promiseAllRejectWithAllErrors } from '.';
 import { getAccessControlledItemForDelete } from './access-control';
 import { runSideEffectOnlyHook, validationHook } from './hooks';
+import { promiseAllRejectWithMutationError } from '.';
 
 export function deleteMany(
   { where }: { where: UniqueInputFilter[] },
@@ -48,7 +48,7 @@ export async function processDelete(
 
   const hookArgs = { operation: 'delete' as const, listKey: list.listKey, context, existingItem };
   await validationHook(list.listKey, 'delete', undefined, async addValidationError => {
-    await promiseAllRejectWithAllErrors(
+    await promiseAllRejectWithMutationError(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         await field.hooks.validateDelete?.({
           ...hookArgs,

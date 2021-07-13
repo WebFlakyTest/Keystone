@@ -268,7 +268,7 @@ describe('non-matching filter', () => {
 
   test(
     'errors if connecting items which cannot be found during update',
-    runner(async ({ context, graphQLRequest }) => {
+    runner(async ({ context }) => {
       const FAKE_ID = 100;
 
       // Create an item to link against

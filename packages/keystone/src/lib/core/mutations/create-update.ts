@@ -13,7 +13,7 @@ import {
 } from './nested-mutation-one-input-resolvers';
 import { applyAccessControlForCreate, getAccessControlledItemForUpdate } from './access-control';
 import { runSideEffectOnlyHook, validationHook } from './hooks';
-import { promiseAllRejectWithAllErrors } from '.';
+import { promiseAllRejectWithMutationError } from '.';
 
 export class NestedMutationState {
   #afterChanges: (() => void | Promise<void>)[] = [];
@@ -31,7 +31,7 @@ export class NestedMutationState {
     return { kind: 'connect' as const, id: item.id as any };
   }
   async afterChange() {
-    await promiseAllRejectWithAllErrors(this.#afterChanges.map(async x => x()));
+    await promiseAllRejectWithMutationError(this.#afterChanges.map(async x => x()));
   }
 }
 
@@ -120,7 +120,7 @@ async function resolveInputForCreateOrUpdate(
   const operation: 'create' | 'update' = existingItem === undefined ? 'create' : 'update';
   const nestedMutationState = new NestedMutationState(context);
   let resolvedData = Object.fromEntries(
-    await promiseAllRejectWithAllErrors(
+    await promiseAllRejectWithMutationError(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         const inputConfig = field.input?.[operation];
 
@@ -237,7 +237,7 @@ async function resolveInputForCreateOrUpdate(
     existingItem,
   };
   await validationHook(list.listKey, operation, originalInput, async addValidationError => {
-    await promiseAllRejectWithAllErrors(
+    await promiseAllRejectWithMutationError(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         await field.hooks.validateInput?.({
           ...args,
@@ -307,24 +307,18 @@ async function resolveInputHook(
     existingItem,
   };
   resolvedData = Object.fromEntries(
-    await promiseAllRejectWithAllErrors(
+    await promiseAllRejectWithMutationError(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         if (field.hooks.resolveInput === undefined) {
           return [fieldKey, resolvedData[fieldKey]];
         }
-        const value = await field.hooks.resolveInput({
-          ...args,
-          fieldPath: fieldKey,
-        });
+        const value = await field.hooks.resolveInput({ ...args, fieldPath: fieldKey });
         return [fieldKey, value];
       })
     )
   );
   if (list.hooks.resolveInput) {
-    resolvedData = (await list.hooks.resolveInput({
-      ...args,
-      resolvedData,
-    })) as any;
+    resolvedData = (await list.hooks.resolveInput({ ...args, resolvedData })) as any;
   }
   return resolvedData;
 }

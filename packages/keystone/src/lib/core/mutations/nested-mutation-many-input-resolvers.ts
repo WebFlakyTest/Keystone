@@ -2,8 +2,8 @@ import { KeystoneContext, TypesForList, schema } from '@keystone-next/types';
 import { UserInputError } from 'apollo-server-errors';
 import { resolveUniqueWhereInput, UniqueInputFilter, UniquePrismaFilter } from '../where-inputs';
 import { InitialisedList } from '../types-for-lists';
-import { isRejected, isFulfilled } from '.';
 import { NestedMutationState } from './create-update';
+import { isRejected, isFulfilled } from '.';
 
 const isNotNull = <T>(arg: T): arg is Exclude<T, null> => arg !== null;
 

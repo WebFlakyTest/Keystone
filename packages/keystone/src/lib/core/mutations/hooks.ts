@@ -1,5 +1,5 @@
 import { ValidationFailureError } from '../graphql-errors';
-import { promiseAllRejectWithAllErrors } from '.';
+import { promiseAllRejectWithMutationError } from '.';
 
 type ValidationError = { msg: string; data: {} };
 
@@ -45,7 +45,7 @@ export async function runSideEffectOnlyHook<
   args: Args,
   shouldRunFieldLevelHook: (fieldKey: string) => boolean
 ) {
-  await promiseAllRejectWithAllErrors(
+  await promiseAllRejectWithMutationError(
     Object.entries(list.fields).map(async ([fieldKey, field]) => {
       if (shouldRunFieldLevelHook(fieldKey)) {
         await field.hooks[hookName]?.({ fieldPath: fieldKey, ...args });

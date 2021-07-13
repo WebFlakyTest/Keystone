@@ -132,13 +132,16 @@ export function getMutationsForList(list: InitialisedList, provider: DatabasePro
 }
 
 type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
+
 // these aren't here out of thinking this is better syntax(i do not think it is),
 // it's just because TS won't infer the arg is X bit
 export const isFulfilled = <T>(arg: PromiseSettledResult<T>): arg is PromiseFulfilledResult<T> =>
   arg.status === 'fulfilled';
-export const isRejected = (arg: PromiseSettledResult<any>): arg is PromiseRejectedResult =>
+
+  export const isRejected = (arg: PromiseSettledResult<any>): arg is PromiseRejectedResult =>
   arg.status === 'rejected';
-export async function promiseAllRejectWithAllErrors<T extends unknown[]>(
+
+  export async function promiseAllRejectWithMutationError<T extends unknown[]>(
   promises: readonly [...T]
 ): Promise<{ [P in keyof T]: Awaited<T[P]> }> {
   const results = await Promise.allSettled(promises);
