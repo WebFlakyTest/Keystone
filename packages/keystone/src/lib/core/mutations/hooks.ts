@@ -6,18 +6,14 @@ type ValidationError = { msg: string; data: {} };
 type AddValidationError = (msg: string, data?: {}) => void;
 
 export async function validationHook(
-  listKey: string,
-  operation: 'create' | 'update' | 'delete',
-  originalInput: Record<string, string> | undefined,
   validationHook: (addValidationError: AddValidationError) => void | Promise<void>
 ) {
   const errors: ValidationError[] = [];
 
-  const _addValidationError: AddValidationError = (msg, data = {}) => {
+  await validationHook((msg, data = {}) => {
     errors.push({ msg, data });
-  };
+  });
 
-  await validationHook(_addValidationError);
   if (errors.length) {
     throw ValidationFailureError({ data: { errors } });
   }
@@ -45,6 +41,7 @@ export async function runSideEffectOnlyHook<
   args: Args,
   shouldRunFieldLevelHook: (fieldKey: string) => boolean
 ) {
+  // Field hooks
   await promiseAllRejectWithMutationError(
     Object.entries(list.fields).map(async ([fieldKey, field]) => {
       if (shouldRunFieldLevelHook(fieldKey)) {
@@ -52,5 +49,7 @@ export async function runSideEffectOnlyHook<
       }
     })
   );
+
+  // List hooks
   await list.hooks[hookName]?.(args);
 }

@@ -32,11 +32,11 @@ export function getMutationsForList(list: InitialisedList, provider: DatabasePro
     },
   });
 
+  // FIXME: Should this exist on list.types?
   const createManyInput = schema.inputObject({
     name: names.createManyInputName,
     fields: { data: schema.arg({ type: list.types.create }) },
   });
-
   const createMany = schema.field({
     type: schema.list(list.types.output),
     args: { data: schema.arg({ type: schema.list(createManyInput) }) },
@@ -53,24 +53,26 @@ export function getMutationsForList(list: InitialisedList, provider: DatabasePro
     },
   });
 
-  const updateOneArgs = {
-    id: schema.arg({ type: schema.nonNull(schema.ID) }),
-    data: schema.arg({ type: list.types.update }),
-  };
   const updateOne = schema.field({
     type: list.types.output,
-    args: updateOneArgs,
+    args: {
+      id: schema.arg({ type: schema.nonNull(schema.ID) }),
+      data: schema.arg({ type: list.types.update }),
+    },
     description: ` Update a single ${list.listKey} item by ID.`,
     resolve(_rootVal, { data, id }, context) {
       return createAndUpdate.updateOne({ data: data ?? {}, where: { id } }, list, context);
     },
   });
 
+  // FIXME: Should this exist on list.types?
   const updateManyInput = schema.inputObject({
     name: names.updateManyInputName,
-    fields: updateOneArgs,
+    fields: {
+      id: schema.arg({ type: schema.nonNull(schema.ID) }),
+      data: schema.arg({ type: list.types.update }),
+    },
   });
-
   const updateMany = schema.field({
     type: schema.list(list.types.output),
     args: { data: schema.arg({ type: schema.list(updateManyInput) }) },
@@ -138,10 +140,10 @@ type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
 export const isFulfilled = <T>(arg: PromiseSettledResult<T>): arg is PromiseFulfilledResult<T> =>
   arg.status === 'fulfilled';
 
-  export const isRejected = (arg: PromiseSettledResult<any>): arg is PromiseRejectedResult =>
+export const isRejected = (arg: PromiseSettledResult<any>): arg is PromiseRejectedResult =>
   arg.status === 'rejected';
 
-  export async function promiseAllRejectWithMutationError<T extends unknown[]>(
+export async function promiseAllRejectWithMutationError<T extends unknown[]>(
   promises: readonly [...T]
 ): Promise<{ [P in keyof T]: Awaited<T[P]> }> {
   const results = await Promise.allSettled(promises);

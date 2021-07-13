@@ -26,7 +26,11 @@ export class NestedMutationState {
     list: InitialisedList
   ): Promise<{ kind: 'connect'; id: IdType } | { kind: 'create'; data: Record<string, any> }> {
     const { afterChange, data } = await createOneState({ data: input }, list, this.#context);
+
+    // FIXME: We want to catch and translate some of the errors that might happen here.
+    // For example, unique constraint violations should probably be translated into Validation Errors
     const item = await getPrismaModelForList(this.#context.prisma, list.listKey).create({ data });
+
     this.#afterChanges.push(() => afterChange(item));
     return { kind: 'connect' as const, id: item.id as any };
   }
@@ -50,7 +54,10 @@ export async function createOne(
   context: KeystoneContext
 ) {
   const { data, afterChange } = await createOneState(args, list, context);
+  // FIXME: We want to catch and translate some of the errors that might happen here.
+  // For example, unique constraint violations should probably be translated into Validation Errors
   const item = await getPrismaModelForList(context.prisma, list.listKey).create({ data });
+
   await afterChange(item);
   return item;
 }
@@ -64,6 +71,9 @@ export function createMany(
   const writeLimit = pLimit(provider === 'sqlite' ? 1 : Infinity);
   return data.map(async rawData => {
     const { data, afterChange } = await createOneState({ data: rawData }, list, context);
+    // FIXME: We want to catch and translate some of the errors that might happen here.
+    // For example, unique constraint violations should probably be translated into Validation Errors
+
     const item = await writeLimit(() =>
       getPrismaModelForList(context.prisma, list.listKey).create({ data })
     );
@@ -206,7 +216,7 @@ async function resolveInputForCreateOrUpdate(
   );
 
   // Check isRequired
-  await validationHook(list.listKey, operation, originalInput, addValidationError => {
+  await validationHook(addValidationError => {
     for (const [fieldKey, field] of Object.entries(list.fields)) {
       // yes, this is a massive hack, it's just to make image and file fields work well enough
       let val = resolvedData[fieldKey];
@@ -236,7 +246,7 @@ async function resolveInputForCreateOrUpdate(
     resolvedData,
     existingItem,
   };
-  await validationHook(list.listKey, operation, originalInput, async addValidationError => {
+  await validationHook(async addValidationError => {
     await promiseAllRejectWithMutationError(
       Object.entries(list.fields).map(async ([fieldKey, field]) => {
         await field.hooks.validateInput?.({
@@ -249,7 +259,7 @@ async function resolveInputForCreateOrUpdate(
   });
 
   // List validation hooks
-  await validationHook(list.listKey, operation, originalInput, async addValidationError => {
+  await validationHook(async addValidationError => {
     await list.hooks.validateInput?.({ ...args, addValidationError });
   });
   // Run beforeChange hooks
