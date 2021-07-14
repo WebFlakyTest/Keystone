@@ -195,16 +195,13 @@ describe('Authed', () => {
 
             test(`single not allowed: ${JSON.stringify(access)}`, async () => {
               const invalidId = items[listKey].find(({ name }) => name !== 'Hello')?.id;
-              const query = `query { ${listKey}(where: { id: "${invalidId}" }) { id } }`;
-              const { data, errors } = await context.graphql.raw({ query });
+              const item = await context.lists[listKey].findOne({ where: { id: invalidId } });
               if (mode === 'imperative') {
                 // Imperative should work
-                expect(errors).toBe(undefined);
-                expect(data?.[listKey]).not.toBe(null);
-                expect(data?.[listKey].id).toEqual(invalidId);
+                expect(item).toEqual({ id: invalidId });
               } else {
                 // but declarative should not
-                expectNoAccess(data, errors, listKey);
+                expect(item).toEqual(null);
               }
             });
 
