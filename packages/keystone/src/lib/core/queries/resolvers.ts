@@ -79,7 +79,8 @@ async function findOneFilter(
   if (access === false) {
     throw AccessDeniedError();
   }
-  // maybe UserInputError
+
+  // maybe BAD_USER_INPUT
   let resolvedUniqueWhere = await resolveUniqueWhereInput(where, list.fields, context);
 
   const wherePrismaFilter = mapUniqueWhereToWhere(list, resolvedUniqueWhere);
@@ -93,7 +94,7 @@ export async function findOne(
   list: InitialisedList,
   context: KeystoneContext
 ) {
-  // Maybe KS_ACCESS_DENIED
+  // Maybe KS_ACCESS_DENIED, BAD_USER_INPUT
   const filter = await findOneFilter(args, list, context);
 
   // Shouldn't error

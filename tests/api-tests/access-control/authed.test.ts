@@ -209,9 +209,10 @@ describe('Authed', () => {
             });
 
             test(`single not existing: ${JSON.stringify(access)}`, async () => {
-              const query = `query { ${listKey}(where: { id: "${FAKE_ID[provider]}" }) { id } }`;
-              const { data, errors } = await context.graphql.raw({ query });
-              expectNoAccess(data, errors, listKey);
+              const item = await context.lists[listKey].findOne({
+                where: { id: FAKE_ID[provider] },
+              });
+              expect(item).toEqual(null);
             });
 
             test(`multiple not existing: ${JSON.stringify(access)}`, async () => {
