@@ -97,16 +97,7 @@ export async function findOne(
   const filter = await findOneFilter(args, list, context);
 
   // Shouldn't error
-  const item = await getPrismaModelForList(context.prisma, list.listKey).findFirst({
-    where: filter,
-  });
-
-  // FIXME: We want to change this behaviour
-  if (item === null) {
-    throw AccessDeniedError();
-  }
-
-  return item;
+  return getPrismaModelForList(context.prisma, list.listKey).findFirst({ where: filter });
 }
 
 export async function findMany(
