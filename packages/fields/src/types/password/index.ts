@@ -62,6 +62,8 @@ export const password =
       if (val === '') {
         return null;
       }
+
+      // These checks should move into the validation stage
       if (typeof val === 'string') {
         if (rejectCommon && dumbPasswords.check(val)) {
           const msg = `[password:rejectCommon:${meta.listKey}:${meta.fieldKey}] Common and frequently-used passwords are not allowed.`;

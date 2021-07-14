@@ -44,7 +44,10 @@ export async function createOneState(
   list: InitialisedList,
   context: KeystoneContext
 ) {
+  // check for bad user input first?
+
   await applyAccessControlForCreate(list, context, rawData);
+
   return resolveInputForCreateOrUpdate(list, context, rawData, undefined);
 }
 
@@ -90,14 +93,23 @@ export async function updateOne(
   list: InitialisedList,
   context: KeystoneContext
 ) {
+  // Check for bad user input
+  // e.g. connect/create statements are valid,
+  // ID fields are well formed?
+  // Timestamps are interpretable?
+  // JSON is well formed?
+
   const item = await getAccessControlledItemForUpdate(list, context, rawUniqueWhere, rawData);
   const { afterChange, data } = await resolveInputForCreateOrUpdate(list, context, rawData, item);
 
+  // Need to check here for uniqueness and map that to a validation error.
   const updatedItem = await getPrismaModelForList(context.prisma, list.listKey).update({
     where: { id: item.id },
     data,
   });
 
+  // Errors here should... hmm. I think we agreed that we would surface the error,
+  // but still return valid data? We need to add tests for this.
   await afterChange(updatedItem);
 
   return updatedItem;
@@ -149,6 +161,10 @@ async function resolveInputForCreateOrUpdate(
         }
 
         // Resolve field type input resolvers
+        // If we have a *create* we can end up
+        // with any kind of error.
+        // If we have a *connect* we can end up with
+        // access control errors...? Need to assess what these might be
         const resolved = inputConfig?.resolve
           ? await inputConfig.resolve(
               input,
@@ -206,6 +222,7 @@ async function resolveInputForCreateOrUpdate(
   );
 
   // Resolve input hooks
+  // In general no errors should be thrown here
   resolvedData = await resolveInputHook(
     list,
     context,
@@ -216,6 +233,8 @@ async function resolveInputForCreateOrUpdate(
   );
 
   // Check isRequired
+  // Need to support multiple validation failures
+  // Need to support multiple validation failures and return them all
   await validationHook(addValidationError => {
     for (const [fieldKey, field] of Object.entries(list.fields)) {
       // yes, this is a massive hack, it's just to make image and file fields work well enough
@@ -236,8 +255,10 @@ async function resolveInputForCreateOrUpdate(
       }
     }
   });
+  // FIXME: Apply field validation here, e.g. password strength conditions.
 
   // Field validation hooks
+  // Need to support multiple validation failures and return them all
   const args = {
     context,
     listKey: list.listKey,
@@ -262,7 +283,9 @@ async function resolveInputForCreateOrUpdate(
   await validationHook(async addValidationError => {
     await list.hooks.validateInput?.({ ...args, addValidationError });
   });
+
   // Run beforeChange hooks
+  // Only system errors should happen here
   const originalInputKeys = new Set(Object.keys(originalInput));
   const shouldCallFieldLevelSideEffectHook = (fieldKey: string) => originalInputKeys.has(fieldKey);
   await runSideEffectOnlyHook(list, 'beforeChange', args, shouldCallFieldLevelSideEffectHook);
